@@ -71,14 +71,19 @@ for day in range(days):
         # shifts can go over midnight so we need to check if the shift is in the slot
         model.Add(sum([assigned[(day, shift)] for shift in shifts if ((shift[0] <= slot and shift[0] + shift[1] > slot) or (shift[0]+shift[1]-slots_per_day > slot  ))]) >= demand[day*slots_per_day + slot])
 
+# Minimum average shift length
+#model.AddDivisionEquality(sum([assigned[(day, shift)]*shift[1] for day in range(days) for shift in shifts]) / 
+# sum(assigned[(day, shift)] for day in range(days) for shift in shifts)) >= minimumAverageShiftLength
 
+#model.Add(sum(sum([assigned[(day, shift)]*shift[1] for day in range(days) for shift in shifts]) )/
+#          sum(assigned[(day, shift)]) >= minimumAverageShiftLength)
 
 
 # optimizer
 model.Minimize(weightOverCover*sum([assigned[(day, shift)]*shift[1] for day in range(days) for shift in shifts]) +
                # Number of shift instances, not number of people assigned to shifts
                # Wrong: weightShiftInstances*sum([assigned[(day, shift)] for day in range(days) for shift in shifts]))
-                weightShiftInstances* ([assigned[(day, shift)] for day in range(days) for shift in shifts].count(0)))
+                weightShiftInstances*sum([assigned[(day, shift)] for day in range(days) for shift in shifts]))
 
 #model.Minimize(sum([weightOverCover*assigned[(day, shift, i)] for day in range(days) for shift in shifts for i in range(max(demand))]))
 
