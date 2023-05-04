@@ -1,0 +1,15 @@
+interval = 180;
+days = 1;
+demand = [1,1,4,3,5,4,2,3];
+shiftTypes = 2;
+minStart = [2, 4];
+maxStart = [2, 7];
+minLength = [2, 2];
+maxLength = [4, 4];
+minDuties = 0;
+maxDuties = 4;
+avgMinutes = 2400;
+weightUnderCover = 0;
+weightOverCover = 1;
+weightDutiesPerWeek = 0;
+weightShiftInstances = 181;
