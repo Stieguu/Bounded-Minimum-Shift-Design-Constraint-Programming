@@ -1,7 +1,26 @@
 from ortools.sat.python import cp_model
+import argparse
+import sys
 
-path_data = "instances/toy1.dzn"
-#path_data = "instances/DataSet1/RandomExample1.dzn"
+# Create the parser
+parser = argparse.ArgumentParser()
+
+# Add arguments
+parser.add_argument('--file', type=str, help='The input file')
+parser.add_argument('--test', action='store_true', help='A test flag')
+
+# Parse arguments
+args = parser.parse_args()
+
+# Access arguments
+path_data = args.file
+is_test = args.test
+
+if path_data is None:
+    path_data = "instances/toy1.dzn"
+    #path_data = "instances/DataSet1/RandomExample5.dzn"
+
+#sys.stderr.write(f"Processing {path_data}\n")
 
 with open(path_data) as f:
     data = f.read()
@@ -9,29 +28,32 @@ with open(path_data) as f:
 vars_lists = data.split(";\n")
 
 time_interval_in_Minutes = int(vars_lists[0].split(" = ")[1])
-print("time_interval_in_Minutes = ", time_interval_in_Minutes)
 days = int(vars_lists[1].split(" = ")[1])
-print("days = ", days)
 demand = [int(x) for x in vars_lists[2].split(" = ")[1][1:-1].split(",")]
-print("demand = ", demand)
 shiftTypes = int(vars_lists[3].split(" = ")[1])
-print("shiftTypes = ", shiftTypes)
 minStart = [int(x) for x in vars_lists[4].split(" = ")[1][1:-1].split(",")]
-print("minStart = ", minStart)
 maxStart = [int(x) for x in vars_lists[5].split(" = ")[1][1:-1].split(",")]
-print("maxStart = ", maxStart)
 minLength = [int(x) for x in vars_lists[6].split(" = ")[1][1:-1].split(",")]
-print("minLength = ", minLength)
 maxLength = [int(x) for x in vars_lists[7].split(" = ")[1][1:-1].split(",")]
-print("maxLength = ", maxLength)
-maxDuties = int(vars_lists[9].split(" = ")[1])
-print("maxDuties = ", maxDuties)
+maxDuties = float(vars_lists[9].split(" = ")[1])
 avgMinutes = int(vars_lists[10].split(" = ")[1])
-print("avgMinutes = ", avgMinutes)
 weightOverCover = int(vars_lists[12].split(" = ")[1])
-print("weightOverCover = ", weightOverCover)
 weightShiftInstances = int(vars_lists[14].split(" = ")[1])
-print("weightShiftInstances = ", weightShiftInstances)
+
+if not is_test:
+    print("time_interval_in_Minutes = ", time_interval_in_Minutes)
+    print("days = ", days)
+    print("demand = ", demand)
+    print("shiftTypes = ", shiftTypes)
+    print("minStart = ", minStart)
+    print("maxStart = ", maxStart)
+    print("minLength = ", minLength)
+    print("maxLength = ", maxLength)
+    print("maxDuties = ", maxDuties)
+    print("avgMinutes = ", avgMinutes)
+    print("weightOverCover = ", weightOverCover)
+    print("weightShiftInstances = ", weightShiftInstances)
+
 
 # Hard constraint: Fully cover the given demand.
 # Hard constraint: Satisfy a given minimum average shift length 
@@ -42,11 +64,12 @@ print("weightShiftInstances = ", weightShiftInstances)
 # maxStart, minLength, maxLength, minimumAverageShiftLength
 
 minimumAverageShiftLength = avgMinutes/(maxDuties*time_interval_in_Minutes)
-print("minimumAverageShiftLength = ",minimumAverageShiftLength)
-minimumAverageShiftLengthInMinutes = avgMinutes/maxDuties
-print("minimumAverageShiftLengthInMinutes = ",minimumAverageShiftLengthInMinutes)
+
 slots_per_day = int(24*60/time_interval_in_Minutes)
-print("slots_per_day = ",slots_per_day)
+
+if not is_test:
+    print("minimumAverageShiftLength = ",minimumAverageShiftLength)
+    print("slots_per_day = ",slots_per_day)
 
 # Create the model.
 model = cp_model.CpModel()
@@ -76,7 +99,8 @@ total_length = sum(shift[1]*assigned[(day, shift)] for day in range(days) for sh
 total_shifts = sum(assigned[(day, shift)] for day in range(days) for shift in shifts)
 
 # average shift length is at least minimumAverageShiftLength
-model.Add(total_length * time_interval_in_Minutes >= int(minimumAverageShiftLength * time_interval_in_Minutes) * total_shifts)
+if not is_test:
+    model.Add(total_length * time_interval_in_Minutes >= int(minimumAverageShiftLength * time_interval_in_Minutes) * total_shifts)
 
 
 # Cover Demand
@@ -107,32 +131,51 @@ total_shift_instances = model.NewIntVar(0, weightShiftInstances*days*len(shifts)
 model.Add(total_shift_instances == sum(shift_used.values()))
 
 # Objective
-objective = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day + weightShiftInstances*days*len(shifts), "objective")
-model.Add(objective == weightOverCover * total_over_coverage + weightShiftInstances * total_shift_instances)
+if not is_test:
+    objective = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day + weightShiftInstances*days*len(shifts), "objective")
+    model.Add(objective == weightOverCover * total_over_coverage + weightShiftInstances * total_shift_instances)
+else:
+    objective = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day, "objective")
+    model.Add(objective == weightOverCover * total_over_coverage)
 model.Minimize(objective)
 
 # Create the solver and solve the problem
 solver = cp_model.CpSolver()
-solver.parameters.log_search_progress = True
+if not is_test:
+    solver.parameters.log_search_progress = True
+else:
+    solver.parameters.log_search_progress = False
+
 status = solver.Solve(model)
 
 # Print the solution
-if status == cp_model.OPTIMAL:
-    print(f'Optimal solution found with objective value {solver.ObjectiveValue()}')
-    print(f'Number of shift hours in demand: {sum(demand)} and factor weightOverCover: {weightOverCover}')
-    print(f'factor weightShiftInstances: {weightShiftInstances}')
+if not is_test:
+    if status == cp_model.OPTIMAL:
+        print(f'Optimal solution found with objective value {solver.ObjectiveValue()}')
+        print(f'Number of shift hours in demand: {sum(demand)} and factor weightOverCover: {weightOverCover}')
+        print(f'factor weightShiftInstances: {weightShiftInstances}')
 
-    for day in range(days):
-        for shift in shifts:
-            if solver.Value(assigned[(day, shift)]) > 0:
-                print(f'Assigned {solver.Value(assigned[(day, shift)])} people to shift {shift} on day {day}')
-            #for i in range(max(demand)):
-            #    if solver.Value(assigned[(day, shift, i)]) == 1:
-            #        print(f'Assigned {i} people to shift {shift} on day {day}')
+        for day in range(days):
+            for shift in shifts:
+                if solver.Value(assigned[(day, shift)]) > 0:
+                    print(f'Assigned {solver.Value(assigned[(day, shift)])} people to shift {shift} on day {day}')
+        print("Over coverage is ", solver.Value(total_over_coverage))
+        print(f"There are {solver.Value(total_shift_instances)} shift instances ")
 
+
+    else:
+        print('No solution found')
+        print(solver.ResponseStats())
 else:
-    print('No solution found')
-    print(solver.ResponseStats())
+    print(path_data)
+    print("Over coverage is ", solver.Value(total_over_coverage))
+    print(f"There are {solver.Value(total_shift_instances)} shift instances ")
+    for day in range(days):
+            for shift in shifts:
+                if solver.Value(assigned[(day, shift)]) > 0:
+                    print(f'Assigned {solver.Value(assigned[(day, shift)])} people to shift {shift} on day {day}')
+    print("\n\n")
+
 
 
 
