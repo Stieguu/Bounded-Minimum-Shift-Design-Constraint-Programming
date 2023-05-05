@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Set this variable to the paths of your directories, separated by spaces
+DIRS=("instances/DataSet1" "instances/DataSet2" "instances/DataSet3")
+
+# Set this variable to 1 to include the --test flag in all calls, or 0 to exclude it
+TEST=0
+
+# The name of the output file
+OUTFILE="output.txt"
+
+# The name of your binary (replace this with your actual binary name)
+BINARY="python main.py"
+
+# Remove old output data
+echo -n "" > "${OUTFILE}"
+
+# Loop over all directories
+for dir in "${DIRS[@]}"
+do
+   # Loop over all .dzn files in this directory
+   for file in "$dir"/*.dzn
+   do
+      # If TEST is 1, include the --test flag, otherwise exclude it
+      if ((TEST)); then
+         echo "${BINARY} --file $file --test"
+         ${BINARY} --file "$file" --test >> "${OUTFILE}"
+      else
+         echo "${BINARY} --file $file"
+         ${BINARY} --file "$file" >> "${OUTFILE}"
+      fi
+   done
+done
