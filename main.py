@@ -8,85 +8,108 @@ with open(path_data) as f:
 
 vars_lists = data.split(";\n")
 
-print(vars_lists)
-
-# ['interval = 60', 'days = 7', 'demand = [0,0,0,0,0,0,0,3,11,11,12,18,18,18,15,11,11,7,7,2,0,0,1,1,1,1,1,1,1,1,0,5,13,13,14,20,20,20,15,11,11,7,7,2,0,0,1,1,1,1,1,1,1,1,0,5,13,13,14,20,20,20,15,11,11,7,7,2,0,0,2,2,2,2,2,2,2,2,0,5,13,13,14,20,20,20,15,11,11,7,7,2,0,0,1,1,1,1,1,1,1,1,0,5,13,13,14,19,19,19,14,10,10,6,6,3,0,0,1,1,1,1,1,1,1,1,0,4,7,7,8,14,14,17,13,13,13,10,10,5,3,3,0,0,0,0,0,0,0,0,0,4,7,7,8,14,14,17,13,13,13,10,10,5,3,3,0,0]', 'shiftTypes = 4', 'minStart = [5, 9, 13, 21]', 'maxStart = [8, 11, 15, 23]', 'minLength = [7, 7, 7, 7]', 'maxLength = [9, 9, 9, 9]', 'minDuties = 3', 'maxDuties = 5', 'avgMinutes = 2310', 'weightUnderCover = 1', 'weightOverCover = 1', 'weightDutiesPerWeek = 1000', 'weightShiftInstances = 60', '']
 time_interval_in_Minutes = int(vars_lists[0].split(" = ")[1])
+print("time_interval_in_Minutes = ", time_interval_in_Minutes)
 days = int(vars_lists[1].split(" = ")[1])
+print("days = ", days)
 demand = [int(x) for x in vars_lists[2].split(" = ")[1][1:-1].split(",")]
+print("demand = ", demand)
 shiftTypes = int(vars_lists[3].split(" = ")[1])
+print("shiftTypes = ", shiftTypes)
 minStart = [int(x) for x in vars_lists[4].split(" = ")[1][1:-1].split(",")]
+print("minStart = ", minStart)
 maxStart = [int(x) for x in vars_lists[5].split(" = ")[1][1:-1].split(",")]
+print("maxStart = ", maxStart)
 minLength = [int(x) for x in vars_lists[6].split(" = ")[1][1:-1].split(",")]
+print("minLength = ", minLength)
 maxLength = [int(x) for x in vars_lists[7].split(" = ")[1][1:-1].split(",")]
-#minDuties = int(vars_lists[8].split(" = ")[1])
+print("maxLength = ", maxLength)
 maxDuties = int(vars_lists[9].split(" = ")[1])
+print("maxDuties = ", maxDuties)
 avgMinutes = int(vars_lists[10].split(" = ")[1])
-#weightUnderCover = int(vars_lists[11].split(" = ")[1])
+print("avgMinutes = ", avgMinutes)
 weightOverCover = int(vars_lists[12].split(" = ")[1])
-#weightDutiesPerWeek = int(vars_lists[13].split(" = ")[1])
+print("weightOverCover = ", weightOverCover)
 weightShiftInstances = int(vars_lists[14].split(" = ")[1])
+print("weightShiftInstances = ", weightShiftInstances)
 
 # Hard constraint: Fully cover the given demand.
-# Hard constraint Hard constraint: Satisfy a given minimum average shift length 
+# Hard constraint: Satisfy a given minimum average shift length 
 # Soft constraint: Minimize exceeding the demand
 # Soft constraint: Minimize the number of different shift instances
 
-# time_interval_in_Minutes is Slotlength for demand, minStart, maxStart, minLength, maxLength
+# time_interval_in_Minutes is Slotlength for demand, minStart, 
+# maxStart, minLength, maxLength, minimumAverageShiftLength
 
 minimumAverageShiftLength = avgMinutes/(maxDuties*time_interval_in_Minutes)
-
+print("minimumAverageShiftLength = ",minimumAverageShiftLength)
+minimumAverageShiftLengthInMinutes = avgMinutes/maxDuties
+print("minimumAverageShiftLengthInMinutes = ",minimumAverageShiftLengthInMinutes)
 slots_per_day = int(24*60/time_interval_in_Minutes)
+print("slots_per_day = ",slots_per_day)
 
 # Create the model.
 model = cp_model.CpModel()
-shifts = []
 
-# Create the variables.
 # create Possible shifts
+shifts = []
 for type in range(shiftTypes):
     for start in range(minStart[type], maxStart[type]+1):
         for length in range(minLength[type], maxLength[type]+1):
-            #model.NewIntVar(0, 1, f'x_{type}_{start}_{length}')
             shifts.append((start, length))
 
-# Assign people to shifts
-# assined people to to each shift
+
 assigned = {}
+
+shift_used = {}
 for day in range(days):
-    for shift in shifts:
-        #for i in range(max(demand)):
-        #    assigned[(day, shift, i)] = model.NewBoolVar(f'x_{day}_{shift}_{i}')
-            
+    for shift in shifts:   
+        # number of people assigned to shift on day
         assigned[(day, shift)] = model.NewIntVar(0, max(demand), f'x_{day}_{shift}')
+        # whether the shift has been assigned to at least one employee
+        shift_used[(day, shift)] = model.NewBoolVar(f'shift_used_{day}_{shift}')
+        model.Add(assigned[(day, shift)] > 0).OnlyEnforceIf(shift_used[(day, shift)])
+        model.Add(assigned[(day, shift)] == 0).OnlyEnforceIf(shift_used[(day, shift)].Not())
 
 
+total_length = sum(shift[1]*assigned[(day, shift)] for day in range(days) for shift in shifts)
+total_shifts = sum(assigned[(day, shift)] for day in range(days) for shift in shifts)
+
+# average shift length is at least minimumAverageShiftLength
+model.Add(total_length * time_interval_in_Minutes >= int(minimumAverageShiftLength * time_interval_in_Minutes) * total_shifts)
 
 
-# Create Constraints
 # Cover Demand
+over_coverage = []
 for day in range(days):
     for slot in range(slots_per_day):
+        # number of employees that started shift today working during slot
+        shifts_today = sum([assigned[(day, shift)] for shift in shifts if (shift[0] <= slot and shift[0] + shift[1] > slot)])
+        yesterday = day - 1
+        # we wrap around to the last day if day = 0
+        if yesterday < 0:
+            yesterday = days - 1
+        # number of employees that started shift yesterday working during slot
+        shifts_yesterday = sum([assigned[(yesterday, shift)] for shift in shifts if (shift[0] + shift[1] - slots_per_day > slot)])
+        # variables that keeps track of the number of extra employees for each slot
+        over_coverage.append(model.NewIntVar(0, max(demand), f'over_coverage_{day}_{slot}'))
+        # we set the over_coverage variables to be the number of extra employees at slot
+        model.Add(shifts_today + shifts_yesterday - demand[day*slots_per_day + slot] == over_coverage[-1])
+        # we add constraint that this must be at least 0, i.e. demand is met at slot
+        model.Add(over_coverage[-1] >= 0)
 
-        # shifts can go over midnight so we need to check if the shift is in the slot
-        model.Add(sum([assigned[(day, shift)] for shift in shifts if ((shift[0] <= slot and shift[0] + shift[1] > slot) or (shift[0]+shift[1]-slots_per_day > slot  ))]) >= demand[day*slots_per_day + slot])
+# sum of the over_coverage for all slots
+total_over_coverage = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day, "total_over_coverage")
+model.Add(total_over_coverage == sum(over_coverage))
 
-# Minimum average shift length
-#model.AddDivisionEquality(sum([assigned[(day, shift)]*shift[1] for day in range(days) for shift in shifts]) / 
-# sum(assigned[(day, shift)] for day in range(days) for shift in shifts)) >= minimumAverageShiftLength
+# total shift instances
+total_shift_instances = model.NewIntVar(0, weightShiftInstances*days*len(shifts), "total_shift_instances")
+model.Add(total_shift_instances == sum(shift_used.values()))
 
-#model.Add(sum(sum([assigned[(day, shift)]*shift[1] for day in range(days) for shift in shifts]) )/
-#          sum(assigned[(day, shift)]) >= minimumAverageShiftLength)
-
-
-# optimizer
-model.Minimize(weightOverCover*sum([assigned[(day, shift)]*shift[1] for day in range(days) for shift in shifts]) +
-               # Number of shift instances, not number of people assigned to shifts
-               # Wrong: weightShiftInstances*sum([assigned[(day, shift)] for day in range(days) for shift in shifts]))
-                weightShiftInstances*sum([assigned[(day, shift)] for day in range(days) for shift in shifts]))
-
-#model.Minimize(sum([weightOverCover*assigned[(day, shift, i)] for day in range(days) for shift in shifts for i in range(max(demand))]))
-
+# Objective
+objective = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day + weightShiftInstances*days*len(shifts), "objective")
+model.Add(objective == weightOverCover * total_over_coverage + weightShiftInstances * total_shift_instances)
+model.Minimize(objective)
 
 # Create the solver and solve the problem
 solver = cp_model.CpSolver()
