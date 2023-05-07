@@ -1,6 +1,7 @@
 from ortools.sat.python import cp_model
 import argparse
 import sys
+import time
 
 # Create the parser
 parser = argparse.ArgumentParser()
@@ -19,8 +20,6 @@ is_test = args.test
 if path_data is None:
     path_data = "instances/toy1.dzn"
     #path_data = "instances/DataSet1/RandomExample5.dzn"
-
-#sys.stderr.write(f"Processing {path_data}\n")
 
 with open(path_data) as f:
     data = f.read()
@@ -83,12 +82,17 @@ for type in range(shiftTypes):
 
 
 assigned = {}
-
 shift_used = {}
 for day in range(days):
-    for shift in shifts:   
+    for shift in shifts: 
+        max_demand = 0
+        shift_start_slot = day * slots_per_day + shift[0]
+        shift_end_slot = shift_start_slot + shift[1]
+        for slot in range(shift_start_slot, shift_end_slot + 1):
+            if max_demand < demand[slot % len(demand)]:
+                max_demand = demand[slot % len(demand)]
         # number of people assigned to shift on day
-        assigned[(day, shift)] = model.NewIntVar(0, max(demand), f'x_{day}_{shift}')
+        assigned[(day, shift)] = model.NewIntVar(0, max_demand, f'x_{day}_{shift}')
         # whether the shift has been assigned to at least one employee
         shift_used[(day, shift)] = model.NewBoolVar(f'shift_used_{day}_{shift}')
         model.Add(assigned[(day, shift)] > 0).OnlyEnforceIf(shift_used[(day, shift)])
@@ -116,15 +120,15 @@ for day in range(days):
         # number of employees that started shift yesterday working during slot
         shifts_yesterday = sum([assigned[(yesterday, shift)] for shift in shifts if (shift[0] + shift[1] - slots_per_day > slot)])
         # variables that keeps track of the number of extra employees for each slot
-        over_coverage.append(model.NewIntVar(0, max(demand), f'over_coverage_{day}_{slot}'))
+        over_coverage.append(model.NewIntVar(0, 2 * max(demand), f'over_coverage_{day}_{slot}'))
         # we set the over_coverage variables to be the number of extra employees at slot
         model.Add(shifts_today + shifts_yesterday - demand[day*slots_per_day + slot] == over_coverage[-1])
         # we add constraint that this must be at least 0, i.e. demand is met at slot
         model.Add(over_coverage[-1] >= 0)
 
 # sum of the over_coverage for all slots
-total_over_coverage = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day, "total_over_coverage")
-model.Add(total_over_coverage == sum(over_coverage))
+total_over_coverage = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day*time_interval_in_Minutes, "total_over_coverage")
+model.Add(total_over_coverage == sum(over_coverage) * time_interval_in_Minutes)
 
 # total shift instances
 total_shift_instances = model.NewIntVar(0, weightShiftInstances*days*len(shifts), "total_shift_instances")
@@ -132,10 +136,10 @@ model.Add(total_shift_instances == sum(shift_used.values()))
 
 # Objective
 if not is_test:
-    objective = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day + weightShiftInstances*days*len(shifts), "objective")
+    objective = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day + weightShiftInstances*days*len(shifts), "objective")
     model.Add(objective == weightOverCover * total_over_coverage + weightShiftInstances * total_shift_instances)
 else:
-    objective = model.NewIntVar(0, weightOverCover*max(demand)*days*slots_per_day, "objective")
+    objective = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day, "objective")
     model.Add(objective == weightOverCover * total_over_coverage)
 model.Minimize(objective)
 
@@ -146,7 +150,15 @@ if not is_test:
 else:
     solver.parameters.log_search_progress = False
 
+stime = time.perf_counter()
 status = solver.Solve(model)
+rtime = time.perf_counter() - stime
+sys.stderr.write(f"Finished processing {path_data} in {rtime}\n")
+if status == cp_model.OPTIMAL:
+    sys.stderr.write(f"status optimal\n")
+    sys.stderr.write(f"solution = {solver.ObjectiveValue()}\n")
+else:
+    sys.stderr.write("No solution found\n")
 
 # Print the solution
 if not is_test:
@@ -168,6 +180,7 @@ if not is_test:
         print(solver.ResponseStats())
 else:
     print(path_data)
+    print(f'Objective value {solver.ObjectiveValue()}')
     print("Over coverage is ", solver.Value(total_over_coverage))
     print(f"There are {solver.Value(total_shift_instances)} shift instances ")
     for day in range(days):
