@@ -131,15 +131,15 @@ total_over_coverage = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slot
 model.Add(total_over_coverage == sum(over_coverage) * time_interval_in_Minutes)
 
 # total shift instances
-total_shift_instances = model.NewIntVar(0, weightShiftInstances*days*len(shifts), "total_shift_instances")
+total_shift_instances = model.NewIntVar(0, days*len(shifts), "total_shift_instances")
 model.Add(total_shift_instances == sum(shift_used.values()))
 
 # Objective
 if not is_test:
-    objective = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day + weightShiftInstances*days*len(shifts), "objective")
+    objective = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day*time_interval_in_Minutes + weightShiftInstances*days*len(shifts), "objective")
     model.Add(objective == weightOverCover * total_over_coverage + weightShiftInstances * total_shift_instances)
 else:
-    objective = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day, "objective")
+    objective = model.NewIntVar(0, weightOverCover*2*max(demand)*days*slots_per_day*time_interval_in_Minutes, "objective")
     model.Add(objective == weightOverCover * total_over_coverage)
 model.Minimize(objective)
 
