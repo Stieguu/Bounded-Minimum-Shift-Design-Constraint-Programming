@@ -154,9 +154,11 @@ with gp.Env() as env, gp.Model(env=env) as model:
         rtime = time.perf_counter() - stime
 
         sys.stderr.write(f"Finished processing {path_data} in {rtime}\n")
+        print(f"Finished processing {path_data} in {rtime}")
         if model.status == gp.GRB.OPTIMAL:
             sys.stderr.write("status optimal\n")
             sys.stderr.write(f"objective =  {model.ObjVal}\n")
+            print("status optimal")
             print(f"objective =  {model.ObjVal}")
             print('total_over_coverage = ', model.getVarByName('total_over_coverage').x)
             print('total_shift_instances = ', model.getVarByName('total_shift_instances').x)
@@ -167,9 +169,11 @@ with gp.Env() as env, gp.Model(env=env) as model:
                         print(f'Assigned {model.getVarByName(var_name).x} people to shift {shift} on day {day}')
         elif model.status == gp.GRB.INFEASIBLE:
             sys.stderr.write("status infeasible\n")
+            print("status infeasible")
         elif model.status == gp.GRB.TIME_LIMIT:
             sys.stderr.write("status time limit reached\n")
             sys.stderr.write(f"objective =  {model.ObjVal}\n")
+            print("status time limit reached")
             print(f"objective =  {model.ObjVal}")
             print('total_over_coverage = ', model.getVarByName('total_over_coverage').x)
             print('total_shift_instances = ', model.getVarByName('total_shift_instances').x)
