@@ -67,6 +67,7 @@ if not is_test:
 # time_interval_in_Minutes is Slotlength for demand, minStart, 
 # maxStart, minLength, maxLength, minimumAverageShiftLength
 
+# neighborhood_distance can be defined to decide how far we search for a solution
 neigborhood_distance = 10
 
 minimumAverageShiftLength = avgMinutes/(maxDuties*time_interval_in_Minutes)
@@ -88,12 +89,7 @@ for type in range(shiftTypes):
 # variables that can be changed
 # assigned[(day, shift)] = number of people assigned to shift on day
 
-
 def create_new_scedule_fits_hard_constraists(assigned, shift_used):
-    # I need last value in case hard constraints are not met
-    # otherwise infinet loop because it does not find resonable solution
-    #last_assigned = copy.deepcopy(assigned)
-    #last_shift_used = copy.deepcopy(shift_used)
 
     # create new schedule
     if assigned == {}:
@@ -116,8 +112,6 @@ def create_new_scedule_fits_hard_constraists(assigned, shift_used):
             # we randomly select a shift to change
             day = random.randint(0, days-1)
             shift = random.choice(shifts)
-
-            #shift = (4, 4)
             # we select the amount to change it
             change = random.choice([-1, 1])
             # we change the shift assignment
@@ -126,16 +120,6 @@ def create_new_scedule_fits_hard_constraists(assigned, shift_used):
 
 
             shift_used[(day, shift)] = assigned[(day, shift)] != 0
-
-
-            
-                
-
-    #print("assigned = ", assigned)
-    #if random.random() < 10.01:
-    #    sys.exit()
-            
-
 
 
     total_length = sum(shift[1]*assigned[(day, shift)] for day in range(days) for shift in shifts)
